@@ -1,0 +1,61 @@
+name: Build Android APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: App version
+        id: v
+        run: echo "ver=$(grep -o 'APP_VERSION="[^"]*"' index.html | head -1 | cut -d'"' -f2)" >> $GITHUB_OUTPUT
+      - name: Prepare web files
+        run: |
+          mkdir www
+          cp index.html www/
+          cp icon-mcq-*.png www/
+      - name: Create Android project
+        run: |
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          npx cap add android
+          npx cap sync android
+      - name: App icon and version
+        run: |
+          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            n=${d%%:*}; s=${d##*:}
+            for f in ic_launcher ic_launcher_round ic_launcher_foreground; do
+              convert icon-mcq-512.png -resize ${s}x${s} android/app/src/main/res/mipmap-$n/$f.png
+            done
+          done
+          rm -rf android/app/src/main/res/mipmap-anydpi-v26
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"${{ steps.v.outputs.ver }}\"/" android/app/build.gradle
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - name: Collect APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk MCQ-Quiz.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MCQ-Quiz-apk
+          path: MCQ-Quiz.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ steps.v.outputs.ver }}-${{ github.run_number }}
+          name: MCQ-Quiz ${{ steps.v.outputs.ver }}
+          files: MCQ-Quiz.apk
+          make_latest: true

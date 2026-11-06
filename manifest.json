@@ -1,7 +1,10 @@
 {
  "name": "MCQ-Quiz Grade-9",
  "short_name": "MCQ-Quiz",
+ "id": "./index.html",
+ "scope": "./",
  "start_url": "./index.html",
+ "lang": "en",
  "display": "standalone",
  "background_color": "#eef4fc",
  "theme_color": "#1d4ed8",

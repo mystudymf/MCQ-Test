@@ -42,7 +42,11 @@ jobs:
           done
           rm -rf android/app/src/main/res/mipmap-anydpi-v26
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"${{ steps.v.outputs.ver }}\"/" android/app/build.gradle
-      - name: Build APK
+          rm -rf android/app/src/main/res/mipmap-anydpi-v26
+          sed -i 's/compileSdk [0-9]*/compileSdk 34/g' android/app/build.gradle
+          sed -i 's/targetSdk [0-9]*/targetSdk 34/g' android/app/build.gradle
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"${{ steps.v.outputs.ver }}\"/" android/app/build.gradle     
+              - name: Build APK
         working-directory: android
         run: |
           chmod +x gradlew

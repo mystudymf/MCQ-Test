@@ -10,13 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check signing key
+        env:
+          KS: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KS" ]; then echo "::error::Secret KEYSTORE_BASE64 is missing. Add it in Settings > Secrets and variables > Actions."; exit 1; fi
+          echo "$KS" | base64 -d > mcq.keystore
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
       - uses: android-actions/setup-android@v3
       - name: App version
         id: v
@@ -29,7 +35,7 @@ jobs:
       - name: Create Android project
         run: |
           npm init -y
-          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          npm install @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8
           npx cap add android
           npx cap sync android
       - name: App icon and version
@@ -42,17 +48,18 @@ jobs:
           done
           rm -rf android/app/src/main/res/mipmap-anydpi-v26
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"${{ steps.v.outputs.ver }}\"/" android/app/build.gradle
-          rm -rf android/app/src/main/res/mipmap-anydpi-v26
-          sed -i 's/compileSdk [0-9]*/compileSdk 34/g' android/app/build.gradle
-          sed -i 's/targetSdk [0-9]*/targetSdk 34/g' android/app/build.gradle
-          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"${{ steps.v.outputs.ver }}\"/" android/app/build.gradle     
-              - name: Build APK
+      - name: Build APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
-      - name: Collect APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk MCQ-Quiz.apk
+          ./gradlew assembleRelease --no-daemon
+      - name: Sign APK with the permanent key
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          UN=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          $BT/zipalign -p 4 "$UN" aligned.apk
+          $BT/apksigner sign --ks mcq.keystore --ks-pass pass:mcqquiz123 --key-pass pass:mcqquiz123 --ks-key-alias mcqquiz --out MCQ-Quiz.apk aligned.apk
+          $BT/apksigner verify --print-certs MCQ-Quiz.apk
       - uses: actions/upload-artifact@v4
         with:
           name: MCQ-Quiz-apk
@@ -69,3 +76,6 @@ jobs:
             2. Open the downloaded file. If Android asks, allow installs from your browser or Files app.
             3. Tap **Install**. Android shows "Installing..." for a few seconds, then "App installed". Tap **Open**.
             4. On first start the app shows a setup screen with a progress bar, percentage and time left.
+
+            **How to update later**
+            Download the newest MCQ-Quiz.apk the same way and open it. Android shows **Update** (not Install) and keeps all your data. No need to uninstall.

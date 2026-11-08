@@ -54,6 +54,10 @@ jobs:
           npx cap add android
           npx cap sync android
           echo "::notice::done: android project created"
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
       - name: App icon and version
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/build.log") 2>&1

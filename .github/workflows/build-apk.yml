@@ -3,27 +3,36 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+
       - name: Check signing key
         env:
           KS: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -z "$KS" ]; then echo "::error::Secret KEYSTORE_BASE64 is missing. Add it in Settings > Secrets and variables > Actions."; exit 1; fi
+          if [ -z "$KS" ]; then
+            echo "::error::Secret KEYSTORE_BASE64 is missing. Add it in Settings > Secrets and variables > Actions.";
+            exit 1;
+          fi
           echo "$KS" | base64 -d > mcq.keystore
           echo "::notice::done: signing key ok ($(wc -c < mcq.keystore) bytes)"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+
       - name: Android SDK (already on the runner)
         run: |
           echo "::notice::start: android sdk check"
@@ -31,6 +40,7 @@ jobs:
           ls "$ANDROID_HOME" || true
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
           echo "::notice::done: android sdk ready at $ANDROID_HOME"
+
       - name: App version
         id: v
         run: |
@@ -38,6 +48,7 @@ jobs:
           VER=$(grep -o 'APP_VERSION="[0-9][0-9.]*"' index.html | head -1 | tr -dc '0-9.' || true)
           echo "ver=$VER" >> $GITHUB_OUTPUT
           echo "::notice::done: app version=$VER; node $(node -v 2>&1)"
+
       - name: Prepare web files
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/build.log") 2>&1
@@ -46,6 +57,7 @@ jobs:
           cp index.html www/
           cp icon-mcq-*.png www/
           echo "::notice::done: web files ready"
+
       - name: Create Android project
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/build.log") 2>&1
@@ -54,15 +66,18 @@ jobs:
           npx cap add android
           npx cap sync android
           echo "::notice::done: android project created"
+
       - name: Install ImageMagick
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick
+
       - name: App icon and version
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/build.log") 2>&1
           for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
-            n=${d%%:*}; s=${d##*:}
+            n=${d%%:*}
+            s=${d##*:}
             for f in ic_launcher ic_launcher_round ic_launcher_foreground; do
               convert icon-mcq-512.png -resize ${s}x${s} android/app/src/main/res/mipmap-$n/$f.png
             done
@@ -70,21 +85,15 @@ jobs:
           rm -rf android/app/src/main/res/mipmap-anydpi-v26
           sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"${{ steps.v.outputs.ver }}\"/" android/app/build.gradle
           echo "::notice::done: icons and version set"
+
       - name: Build APK
         working-directory: android
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/build.log") 2>&1
-          
-          # Completely overwrite the wrapper configuration with a flawless mirror link structure
-          echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
-          echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-          echo "distributionUrl=https\://://aliyun.com" >> gradle/wrapper/gradle-wrapper.properties
-          echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
-          echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-          
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
           echo "::notice::done: gradle build finished"
+
       - name: Sign APK with the permanent key
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/build.log") 2>&1
@@ -94,10 +103,12 @@ jobs:
           $BT/apksigner sign --ks mcq.keystore --ks-pass pass:mcqquiz123 --key-pass pass:mcqquiz123 --ks-key-alias mcqquiz --out MCQ-Quiz.apk aligned.apk
           $BT/apksigner verify --print-certs MCQ-Quiz.apk
           echo "::notice::done: apk signed"
+
       - uses: actions/upload-artifact@v4
         with:
           name: MCQ-Quiz-apk
           path: MCQ-Quiz.apk
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-${{ steps.v.outputs.ver }}-${{ github.run_number }}
@@ -113,6 +124,7 @@ jobs:
 
             **How to update later**
             Download the newest MCQ-Quiz.apk the same way and open it. Android shows **Update** (not Install) and keeps all your data. No need to uninstall.
+
       - name: Show error details
         if: failure()
         run: |

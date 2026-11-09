@@ -74,6 +74,8 @@ jobs:
         working-directory: android
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/build.log") 2>&1
+          # Fix the 504 timeout error by pointing to a reliable mirror instead of the broken servers
+          sed -i 's|services.gradle.org/distributions|://aliyun.com|' gradle/wrapper/gradle-wrapper.properties
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
           echo "::notice::done: gradle build finished"

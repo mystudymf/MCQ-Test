@@ -1,7 +1,13 @@
 {
   "appId": "com.mystudymf.mcqquiz",
-  "appName": "MCQ-Quiz",
+  "appName": "G-9",
   "webDir": "www",
-  "server": { "androidScheme": "https" },
-  "plugins": { "CapacitorHttp": { "enabled": true } }
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
 }

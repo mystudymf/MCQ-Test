@@ -1,6 +1,6 @@
 {
- "name": "MCQ-Quiz Grade-9",
- "short_name": "MCQ-Quiz",
+ "name": "G-9",
+ "short_name": "G-9",
  "id": "./mcq-quiz-grade9",
  "scope": "./",
  "start_url": "./index.html",

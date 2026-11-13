@@ -9,16 +9,9 @@
  "background_color": "#eef4fc",
  "theme_color": "#1d4ed8",
  "icons": [
-  {
-   "src": "icon-mcq-192.png",
-   "sizes": "192x192",
-   "type": "image/png"
-  },
-  {
-   "src": "icon-mcq-512.png",
-   "sizes": "512x512",
-   "type": "image/png",
-   "purpose": "any maskable"
-  }
+  {"src": "icon-mcq-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+  {"src": "icon-mcq-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+  {"src": "icon-mcq-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+  {"src": "icon-mcq-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
  ]
 }

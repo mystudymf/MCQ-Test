@@ -140,7 +140,11 @@ jobs:
         run: |
           exec > >(tee -a "$GITHUB_WORKSPACE/build.log") 2>&1
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          for i in 1 2 3; do
+            ./gradlew assembleRelease --no-daemon --stacktrace && break
+            if [ "$i" = 3 ]; then echo "::error::Gradle failed 3 times"; exit 1; fi
+            echo "Gradle failed (attempt $i). Retrying in 30 seconds..."; sleep 30
+          done
           ls -la app/build/outputs/apk/release/
           echo "::notice::done: gradle build finished"
 

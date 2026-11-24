@@ -1,1 +1,48 @@
+name: Deploy Google Apps Script
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps-script/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Authenticate clasp
+        run: |
+          cat <<EOF > ~/.clasprc.json
+          {
+            "token": {
+              "refresh_token": "${{ secrets.CLASP_REFRESH_TOKEN }}",
+              "token_type": "Bearer",
+              "expiry_date": 1700000000000
+            },
+            "oauth2ClientSettings": {
+              "clientId": "${{ secrets.CLASP_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.CLASP_CLIENT_SECRET }}",
+              "redirectUri": "http://localhost"
+            },
+            "isLocalCreds": false
+          }
+          EOF
+
+      - name: Push & Deploy Apps Script Web App
+        working-directory: ./apps-script
+        run: |
+          echo '{"scriptId":"${{ secrets.SCRIPT_ID }}","rootDir":"."}' > .clasp.json
+          clasp push --force
+          clasp deploy -i "${{ secrets.DEPLOYMENT_ID }}" --description "Auto-deployed by Claude via GitHub"
   

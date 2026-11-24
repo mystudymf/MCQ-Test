@@ -27,20 +27,23 @@ function textOf_(j) {
   return ps.filter(function (p) { return p.text && !p.thought; }).map(function (p) { return p.text; }).join('\n');
 }
 
+function thinkVariants_() { return [{ thinkingLevel: 'minimal' }, { thinkingBudget: 0 }, null]; }
 function solveCore_(key, parts) {
-  var P = PropertiesService.getScriptProperties(), pref = P.getProperty('MODEL'), ground = P.getProperty('GROUNDING') == '1', models = [];
+  var t0 = Date.now(), P = PropertiesService.getScriptProperties(), pref = P.getProperty('MODEL'), ground = P.getProperty('GROUNDING') == '1', models = [];
   if (pref) models.push(pref);
-  ['gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'].forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
-  var last = null;
+  ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'].forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
+  var last = null, vars = thinkVariants_();
   for (var mi = 0; mi < models.length; mi++) {
-    for (var g = ground ? 1 : 0; g >= 0; g--) {
-      var body = { systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ role: 'user', parts: parts }], generationConfig: { maxOutputTokens: 2500, temperature: 0.2, thinkingConfig: { thinkingBudget: 0 } } };
-      if (g) body.tools = [{ google_search: {} }]; else body.generationConfig.responseMimeType = 'application/json';
-      var o = geminiCall_(key, models[mi], body);
-      if (o.code == 400 && /think/i.test(errText_(o))) { delete body.generationConfig.thinkingConfig; o = geminiCall_(key, models[mi], body); }
-      last = o;
-      if (o.code == 200) { var t = textOf_(o.j); if (t) return { text: t, model: models[mi] }; last = { code: 0, j: { error: { message: 'Empty answer (' + ((o.j.promptFeedback || {}).blockReason || 'no text') + ')' } } }; break; }
+    if (Date.now() - t0 > 45000) break;
+    for (var vi = 0; vi < vars.length; vi++) {
+      var body = { systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ role: 'user', parts: parts }], generationConfig: { maxOutputTokens: 1800, temperature: 0.2 } };
+      if (vars[vi]) body.generationConfig.thinkingConfig = vars[vi];
+      if (ground) body.tools = [{ google_search: {} }]; else body.generationConfig.responseMimeType = 'application/json';
+      var o = geminiCall_(key, models[mi], body); last = o;
+      if (o.code == 200) { var t = textOf_(o.j); if (t) return { text: t, model: models[mi], ms: Date.now() - t0 }; last = { code: 0, j: { error: { message: 'Empty answer (' + ((o.j.promptFeedback || {}).blockReason || 'no text') + ')' } } }; break; }
       if (keyBad_(o) || o.code == 429) return { fail: o };
+      if (ground && o.code == 400 && /tool|ground|search/i.test(errText_(o))) { ground = false; vi--; continue; } /* free plans cannot search: continue without it */
+      if (!(o.code == 400 && /think|budget|level/i.test(errText_(o)))) break; /* only a thinking-setting error tries the next thinking variant */
     }
   }
   return { fail: last };
@@ -80,11 +83,20 @@ function doPost(e) {
     cache.put(ck, String(used + 1), 90000);
     var data = parse_(res.text);
     if (ak && data.confidence != 'low') { var js = JSON.stringify(data); if (js.length < 90000) cache.put(ak, js, 21600); }
-    return out_({ ok: true, data: data, left: lim - used - 1 });
+    return out_({ ok: true, data: data, left: lim - used - 1, ms: res.ms, model: res.model });
   } catch (err) { return out_({ ok: false, error: 'Something went wrong. Please try again.', detail: String(err).slice(0, 160) }); }
 }
-function doGet() { return out_({ ok: true, v: 5 }); }
+function doGet() { return out_({ ok: true, v: 6 }); }
 function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+
+/* Run from the editor to see which model is fastest for you (times are in the Execution log). */
+function speedTest() {
+  var P = PropertiesService.getScriptProperties(), key = cleanKey_(P);
+  ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'].forEach(function (m) {
+    var t0 = Date.now(), o = geminiCall_(key, m, { contents: [{ role: 'user', parts: [{ text: 'Reply with the single word: ok' }] }], generationConfig: { maxOutputTokens: 20, thinkingConfig: { thinkingLevel: 'minimal' } } });
+    Logger.log(m + ' -> HTTP ' + o.code + ' in ' + (Date.now() - t0) + ' ms ' + (o.code == 200 ? '' : errText_(o)));
+  });
+}
 
 /* Run once from the editor: asks Google for permission and proves the key and model work. */
 function testSolver() {
@@ -92,5 +104,5 @@ function testSolver() {
   if (!key) { Logger.log('FAIL: add script property GEMINI_KEY first.'); return; }
   var r = solveCore_(key, [{ text: 'Grade 9 Physics\nStudent question / note: A bullet of mass 0.05 kg moves at 300 m/s. Find its kinetic energy.' }]);
   if (r.fail) { Logger.log('FAIL: API ' + r.fail.code + ' ' + errText_(r.fail)); return; }
-  Logger.log('OK (model ' + r.model + '). Answer: ' + parse_(r.text).answer);
+  Logger.log('OK (model ' + r.model + ', ' + r.ms + ' ms). Answer: ' + parse_(r.text).answer);
 }
